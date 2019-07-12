@@ -2,7 +2,7 @@ package logstore
 
 import "testing"
 
-func TestmespacedIDLogSegment_NewLogSegment(t *testing.T) {
+func TestLogSegment_NewLogSegment(t *testing.T) {
 	segment, err := NewLogSegment(1, 4024)
 	if segment.Offset != 1{
 		t.Errorf("Expected offset to be %v but was %v instead", 1, segment.Offset)
