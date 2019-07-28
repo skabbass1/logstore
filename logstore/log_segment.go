@@ -3,7 +3,6 @@ package logstore
 import "os"
 import "fmt"
 
-
 type LogSegment struct {
 	Offset  int64
 	MaxSize int64
@@ -27,15 +26,15 @@ func NewLogSegment(offset int64, maxSize int64) (*LogSegment, error) {
 func (seg *LogSegment) Append(data []byte) (int, error) {
 	size, err := seg.Size()
 	if err != nil {
-		return -1,  NewLogStoreErr(
+		return -1, NewLogStoreErr(
 			OSErr,
 			"unable to get segment size",
 			err,
 		)
 	}
 
-	if int64(len(data)) + size > seg.MaxSize {
-		return -1,  NewLogStoreErr(
+	if int64(len(data))+size > seg.MaxSize {
+		return -1, NewLogStoreErr(
 			SegmentLimitReached,
 			"max segment size limit reached",
 			nil,
@@ -62,7 +61,6 @@ func (seg *LogSegment) Size() (int64, error) {
 
 	return fi.Size(), nil
 }
-
 
 func (seg *LogSegment) Close() error {
 	return seg.Log.Close()
