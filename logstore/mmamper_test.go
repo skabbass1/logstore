@@ -3,6 +3,7 @@ package logstore
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"testing"
 )
@@ -79,6 +80,9 @@ func TestAddItemResizeFile(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 
+	if len(*mf.Data) != 5*24 {
+		t.Errorf("Expected buffer size of %d. Got:%v\n", 5*24, len(*mf.Data))
+	}
 	buf := bytes.NewReader((*mf.Data)[:24])
 	var data struct {
 		Offset   int64
@@ -107,6 +111,24 @@ func TestAddItemResizeFile(t *testing.T) {
 	cleanup(fpath)
 }
 
+func TestGetEntry(t *testing.T) {
+	fpath := "/tmp/test_mapped"
+
+	mf, _ := NewMmappedFile(fpath, 1024)
+	defer mf.Close()
+
+	mf.AddItem(int64(1), int64(0), int64(150))
+	mf.AddItem(int64(2), int64(150), int64(150))
+	mf.AddItem(int64(3), int64(300), int64(150))
+	mf.AddItem(int64(4), int64(450), int64(150))
+	mf.AddItem(int64(5), int64(600), int64(150))
+
+	offset, pos, length := mf.GetEntry(int64(1))
+	fmt.Printf("%d - %d - %d", offset, pos, length)
+
+	cleanup(fpath)
+
+}
 func cleanup(fpath string) {
 	os.Remove(fpath)
 }

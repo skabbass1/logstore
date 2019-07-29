@@ -50,9 +50,33 @@ func (m *Mmapper) AddItem(offset int64, position int64, length int64) error {
 	}
 
 	copy((*m.Data)[m.NextOffset:], buf.Bytes())
-	m.NextOffset++
+	m.NextOffset = m.NextOffset + 24
 
 	return err
+}
+
+func (m *Mmapper) GetEntry(offset int64) (int64, int64, int64) {
+	var data struct {
+		Offset   int64
+		Position int64
+		Length   int64
+	}
+
+	reader := bytes.NewReader((*m.Data)[:24])
+	binary.Read(reader, binary.LittleEndian, &data)
+
+	distance := offset - data.Offset
+	if distance == 0 {
+		return data.Offset, data.Position, data.Length
+	}
+
+	start := 24 * distance
+	end := start + 24
+
+	reader = bytes.NewReader((*m.Data)[start:end])
+	binary.Read(reader, binary.LittleEndian, &data)
+
+	return data.Offset, data.Position, data.Length
 }
 
 func (m *Mmapper) Resize(size int64) error {
