@@ -8,6 +8,48 @@ import (
 	"testing"
 )
 
+func TestIndexEntry_ToBytes(t *testing.T) {
+	entry := IndexEntry{
+		Offset:   1,
+		Position: 0,
+		Length:   150,
+	}
+	blob, err := entry.ToBytes()
+	if err != nil {
+		t.Errorf("conversion to bytes failed:%v\n", err)
+	}
+	expected := []byte{
+		1, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		150, 0, 0, 0, 0, 0, 0, 0}
+
+	if !bytes.Equal(expected, blob) {
+		t.Errorf("expected:%v. Got:%v\n", expected, blob)
+	}
+}
+
+func TestIndexEntry_FromBytes(t *testing.T) {
+	entry := IndexEntry{}
+	err := entry.FromBytes(
+		[]byte{
+			1, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			150, 0, 0, 0, 0, 0, 0, 0},
+	)
+	if err != nil {
+		t.Errorf("conversion from  bytes failed:%v\n", err)
+	}
+	expected := IndexEntry{
+		Offset:   1,
+		Position: 0,
+		Length:   150,
+	}
+	if expected != entry {
+		t.Errorf("expected:%v. Got:%v\n", expected, entry)
+	}
+
+}
+
 func TestNewMmappedFile(t *testing.T) {
 	fpath := "/tmp/test_mapped"
 

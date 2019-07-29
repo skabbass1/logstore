@@ -10,26 +10,49 @@ import (
 
 const IndexItemWidth = 24
 
-type Mmapper struct {
+type IndexEntry struct {
+	Offset   int64
+	Position int64
+	Length   int64
+}
+
+type Index struct {
 	Name       string
 	Data       *[]byte
 	NextOffset int64
 }
 
-func NewMmappedFile(name string, size int64) (*Mmapper, error) {
+func (entry *IndexEntry) ToBytes() ([]byte, error) {
+	buff := new(bytes.Buffer)
+	if err := binary.Write(buff, binary.LittleEndian, entry); err != nil {
+		return nil, err
+	}
+	return buff.Bytes(), nil
+}
+
+func (entry *IndexEntry) FromBytes(data []byte) error {
+	reader := bytes.NewReader(data)
+	if err := binary.Read(reader, binary.LittleEndian, entry); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func NewMmappedFile(name string, size int64) (*Index, error) {
 	err := createFile(name, size)
 	data, err := memMap(name, 0, size)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Mmapper{
+	return &Index{
 		Name: name,
 		Data: &data,
 	}, err
 }
 
-func (m *Mmapper) AddItem(offset int64, position int64, length int64) error {
+func (m *Index) AddItem(offset int64, position int64, length int64) error {
 	if IndexItemWidth+m.NextOffset > int64(len(*m.Data)) {
 		newSize := len(*m.Data) * IndexItemWidth
 		if err := m.Resize(int64(newSize)); err != nil {
@@ -55,7 +78,7 @@ func (m *Mmapper) AddItem(offset int64, position int64, length int64) error {
 	return err
 }
 
-func (m *Mmapper) GetEntry(offset int64) (int64, int64, int64) {
+func (m *Index) GetEntry(offset int64) (int64, int64, int64) {
 	var data struct {
 		Offset   int64
 		Position int64
@@ -79,7 +102,7 @@ func (m *Mmapper) GetEntry(offset int64) (int64, int64, int64) {
 	return data.Offset, data.Position, data.Length
 }
 
-func (m *Mmapper) Resize(size int64) error {
+func (m *Index) Resize(size int64) error {
 	m.Close()
 
 	err := os.Truncate(m.Name, size)
@@ -95,7 +118,7 @@ func (m *Mmapper) Resize(size int64) error {
 	return nil
 }
 
-func (m *Mmapper) Close() error {
+func (m *Index) Close() error {
 	unix.Msync(*m.Data, unix.MS_SYNC)
 	return unix.Munmap(*m.Data)
 }
