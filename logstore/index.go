@@ -39,7 +39,7 @@ func (entry *IndexEntry) FromBytes(data []byte) error {
 	return nil
 }
 
-func NewMmappedFile(name string, size int64) (*Index, error) {
+func NewIndex(name string, size int64) (*Index, error) {
 	err := createFile(name, size)
 	data, err := memMap(name, 0, size)
 	if err != nil {
@@ -52,54 +52,45 @@ func NewMmappedFile(name string, size int64) (*Index, error) {
 	}, err
 }
 
-func (m *Index) AddItem(offset int64, position int64, length int64) error {
-	if IndexItemWidth+m.NextOffset > int64(len(*m.Data)) {
+func (m *Index) AddEntry(entry IndexEntry) error {
+	if m.NextOffset+IndexItemWidth > int64(len(*m.Data)) {
 		newSize := len(*m.Data) * IndexItemWidth
 		if err := m.Resize(int64(newSize)); err != nil {
 			return err
 		}
 	}
 
-	vals := [...]int64{offset, position, length}
-	buf := new(bytes.Buffer)
-
-	var err error
-	for _, v := range vals {
-		err = binary.Write(buf, binary.LittleEndian, v)
-	}
-
+	packed, err := entry.ToBytes()
 	if err != nil {
 		return err
 	}
 
-	copy((*m.Data)[m.NextOffset:], buf.Bytes())
-	m.NextOffset = m.NextOffset + 24
+	copy((*m.Data)[m.NextOffset:], packed)
+	m.NextOffset = m.NextOffset + IndexItemWidth
 
 	return err
 }
 
-func (m *Index) GetEntry(offset int64) (int64, int64, int64) {
-	var data struct {
-		Offset   int64
-		Position int64
-		Length   int64
+func (m *Index) GetEntry(offset int64) (IndexEntry, error) {
+	first := IndexEntry{}
+	if err := first.FromBytes((*m.Data)[:IndexItemWidth]); err != nil {
+		return IndexEntry{}, err
 	}
 
-	reader := bytes.NewReader((*m.Data)[:24])
-	binary.Read(reader, binary.LittleEndian, &data)
-
-	distance := offset - data.Offset
+	distance := offset - first.Offset
 	if distance == 0 {
-		return data.Offset, data.Position, data.Length
+		return first, nil
 	}
 
-	start := 24 * distance
-	end := start + 24
+	start := IndexItemWidth * distance
+	end := start + IndexItemWidth
 
-	reader = bytes.NewReader((*m.Data)[start:end])
-	binary.Read(reader, binary.LittleEndian, &data)
+	entry := IndexEntry{}
+	if err := entry.FromBytes((*m.Data)[start:end]); err != nil {
+		return IndexEntry{}, err
+	}
 
-	return data.Offset, data.Position, data.Length
+	return entry, nil
 }
 
 func (m *Index) Resize(size int64) error {

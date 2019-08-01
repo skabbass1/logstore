@@ -2,8 +2,6 @@ package logstore
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -47,13 +45,12 @@ func TestIndexEntry_FromBytes(t *testing.T) {
 	if expected != entry {
 		t.Errorf("expected:%v. Got:%v\n", expected, entry)
 	}
-
 }
 
-func TestNewMmappedFile(t *testing.T) {
+func TestIndex_NewIndex(t *testing.T) {
 	fpath := "/tmp/test_mapped"
 
-	mf, err := NewMmappedFile(fpath, 50)
+	mf, err := NewIndex(fpath, 50)
 	defer mf.Close()
 
 	if err != nil {
@@ -61,112 +58,113 @@ func TestNewMmappedFile(t *testing.T) {
 	}
 
 	if len(*mf.Data) != 50 {
-		t.Errorf("Expected mapped buffer of len: %d. Got: %d", 50, len(*mf.Data))
+		t.Errorf(
+			"Expected mapped buffer of len: %d. Got: %d",
+			50,
+			len(*mf.Data),
+		)
 	}
 
 	finfo, _ := os.Lstat(fpath)
 	if finfo.Size() != 50 {
-		t.Errorf("Expected mapped file to be of size:%d. Got :%d", 50, finfo.Size())
+		t.Errorf(
+			"Expected mapped file to be of size:%d. Got :%d",
+			50,
+			finfo.Size(),
+		)
 	}
 
 	cleanup(fpath)
 }
 
-func TestAddItem(t *testing.T) {
+func TestIndex_AddEntry(t *testing.T) {
 	fpath := "/tmp/test_mapped"
 
-	mf, err := NewMmappedFile(fpath, 50)
+	mf, err := NewIndex(fpath, 50)
 	defer mf.Close()
 
-	err = mf.AddItem(int64(300), int64(100), int64(150))
+	expected := IndexEntry{
+		Offset:   int64(300),
+		Position: int64(100),
+		Length:   int64(150),
+	}
+	err = mf.AddEntry(expected)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
 
-	buf := bytes.NewReader((*mf.Data)[:24])
-	var data struct {
-		Offset   int64
-		Position int64
-		Length   int64
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &data); err != nil {
-		t.Errorf("Binary read failed:%v\n", err)
-	}
+	got := IndexEntry{}
+	err = got.FromBytes((*mf.Data)[:IndexItemWidth])
 
-	expected := struct {
-		Offset   int64
-		Position int64
-		Length   int64
-	}{
-
-		300,
-		100,
-		150,
-	}
-
-	if expected != data {
-		t.Errorf("Expected:%v Got:%v\n", expected, data)
+	if expected != got {
+		t.Errorf("Expected:%v Got:%v\n", expected, got)
 	}
 
 	cleanup(fpath)
 }
 
-func TestAddItemResizeFile(t *testing.T) {
+func TestIndex_AddEntry_Resize(t *testing.T) {
 	fpath := "/tmp/test_mapped"
 
-	mf, err := NewMmappedFile(fpath, 5)
+	mf, err := NewIndex(fpath, 5)
 	defer mf.Close()
 
-	err = mf.AddItem(int64(300), int64(100), int64(150))
+	expected := IndexEntry{300, 100, 150}
+	err = mf.AddEntry(expected)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
 
-	if len(*mf.Data) != 5*24 {
-		t.Errorf("Expected buffer size of %d. Got:%v\n", 5*24, len(*mf.Data))
+	if len(*mf.Data) != 5*IndexItemWidth {
+		t.Errorf(
+			"Expected buffer size of %d. Got:%v\n",
+			5*IndexItemWidth,
+			len(*mf.Data),
+		)
 	}
-	buf := bytes.NewReader((*mf.Data)[:24])
-	var data struct {
-		Offset   int64
-		Position int64
-		Length   int64
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &data); err != nil {
+
+	got := IndexEntry{}
+	err = got.FromBytes((*mf.Data)[:IndexItemWidth])
+	if err != nil {
 		t.Errorf("Binary read failed:%v\n", err)
 	}
 
-	expected := struct {
-		Offset   int64
-		Position int64
-		Length   int64
-	}{
-
-		300,
-		100,
-		150,
-	}
-
-	if expected != data {
-		t.Errorf("Expected:%v Got:%v\n", expected, data)
+	if expected != got {
+		t.Errorf("Expected:%v Got:%v\n", expected, got)
 	}
 
 	cleanup(fpath)
 }
 
-func TestGetEntry(t *testing.T) {
+func TestIndex_GetEntry(t *testing.T) {
 	fpath := "/tmp/test_mapped"
 
-	mf, _ := NewMmappedFile(fpath, 1024)
+	mf, _ := NewIndex(fpath, 1024)
 	defer mf.Close()
 
-	mf.AddItem(int64(1), int64(0), int64(150))
-	mf.AddItem(int64(2), int64(150), int64(150))
-	mf.AddItem(int64(3), int64(300), int64(150))
-	mf.AddItem(int64(4), int64(450), int64(150))
-	mf.AddItem(int64(5), int64(600), int64(150))
+	mf.AddEntry(IndexEntry{1, 0, 150})
+	mf.AddEntry(IndexEntry{2, 150, 150})
+	mf.AddEntry(IndexEntry{3, 300, 150})
+	mf.AddEntry(IndexEntry{4, 450, 150})
+	mf.AddEntry(IndexEntry{5, 600, 150})
 
-	offset, pos, length := mf.GetEntry(int64(1))
-	fmt.Printf("%d - %d - %d", offset, pos, length)
+	got1, err := mf.GetEntry(int64(1))
+	got3, err := mf.GetEntry(int64(3))
+	got5, err := mf.GetEntry(int64(5))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	results := [...]IndexEntry{got1, got3, got5}
+	expected := [...]IndexEntry{
+		IndexEntry{1, 0, 150},
+		IndexEntry{3, 300, 150},
+		IndexEntry{5, 600, 150},
+	}
+
+	if results != expected {
+		t.Errorf("Expected:%v Got:%v\n", expected, results)
+	}
 
 	cleanup(fpath)
 
