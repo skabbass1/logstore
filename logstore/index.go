@@ -9,6 +9,7 @@ import (
 )
 
 const IndexItemWidth = 24
+const perms = 0655
 
 type IndexEntry struct {
 	Offset   int64
@@ -123,7 +124,7 @@ func createFile(name string, size int64) error {
 }
 
 func memMap(name string, offset int64, length int64) ([]byte, error) {
-	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0655)
+	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, perms)
 	defer f.Close()
 
 	if err != nil {
