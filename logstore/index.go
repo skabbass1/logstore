@@ -23,6 +23,11 @@ type Index struct {
 	NextOffset int64
 }
 
+type ReadOnlyIndex struct {
+	Name string
+	data *[]byte
+}
+
 func (entry *IndexEntry) ToBytes() ([]byte, error) {
 	buff := new(bytes.Buffer)
 	if err := binary.Write(buff, binary.LittleEndian, entry); err != nil {
@@ -115,12 +120,77 @@ func (m *Index) Close() error {
 	return unix.Munmap(*m.Data)
 }
 
+func NewReadOnlyIndex(name string) (*ReadOnlyIndex, error) {
+	data, err := readOnlyMemMap(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ReadOnlyIndex{
+		Name: name,
+		data: &data,
+	}, nil
+
+}
+
+func (m *ReadOnlyIndex) GetEntry(offset int64) (IndexEntry, error) {
+	first := IndexEntry{}
+	if err := first.FromBytes((*m.data)[:IndexItemWidth]); err != nil {
+		return IndexEntry{}, err
+	}
+
+	distance := offset - first.Offset
+	if distance == 0 {
+		return first, nil
+	}
+
+	start := IndexItemWidth * distance
+	end := start + IndexItemWidth
+
+	entry := IndexEntry{}
+	if err := entry.FromBytes((*m.data)[start:end]); err != nil {
+		return IndexEntry{}, err
+	}
+
+	return entry, nil
+}
+
+func (m *ReadOnlyIndex) Close() error {
+	unix.Msync(*m.data, unix.MS_SYNC)
+	return unix.Munmap(*m.data)
+}
+
 func createFile(name string, size int64) error {
 	f, err := os.Create(name)
 	defer f.Close()
 
 	err = f.Truncate(size)
 	return err
+}
+
+func readOnlyMemMap(name string) ([]byte, error) {
+	f, err := os.OpenFile(name, os.O_RDONLY, perms)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+
+	fd := int(f.Fd())
+
+	fi, err := f.Stat()
+	size := fi.Size()
+
+	data, err := unix.Mmap(
+		fd,
+		0,
+		int(size),
+		unix.PROT_READ,
+		unix.MAP_SHARED,
+	)
+
+	return data, err
+
 }
 
 func memMap(name string, offset int64, length int64) ([]byte, error) {

@@ -2,6 +2,7 @@ package logstore
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
 )
@@ -169,6 +170,61 @@ func TestIndex_GetEntry(t *testing.T) {
 	cleanup(fpath)
 
 }
+
+func TestReadOnlyIndex_NewReadOnlyIndex(t *testing.T) {
+	fpath := "/tmp/test_mapped"
+
+	mf, _ := NewIndex(fpath, 1024)
+	defer mf.Close()
+
+	mf.AddEntry(IndexEntry{1, 0, 150})
+	mf.AddEntry(IndexEntry{2, 150, 150})
+
+	roIndex, err := NewReadOnlyIndex(fpath)
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+	defer roIndex.Close()
+
+	length := len(*roIndex.data)
+	if length != 1024 {
+		fmt.Errorf("Expected mapped data length to be %d. Got %d\n", 1024, length)
+	}
+
+	cleanup(fpath)
+}
+
+func TestReadOnlyIndex_GetEntry(t *testing.T) {
+	fpath := "/tmp/test_mapped"
+
+	mf, _ := NewIndex(fpath, 1024)
+	defer mf.Close()
+
+	entry1 := IndexEntry{1, 0, 150}
+	entry2 := IndexEntry{1, 150, 150}
+	mf.AddEntry(entry1)
+	mf.AddEntry(entry2)
+
+	roIndex, _ := NewReadOnlyIndex(fpath)
+	defer roIndex.Close()
+
+	got1, err := roIndex.GetEntry(1)
+	got2, err := roIndex.GetEntry(2)
+
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	if entry1 != got1 {
+		t.Errorf("Expected entry1 to be %v. Got %v\n", entry1, got1)
+	}
+
+	if entry2 != got2 {
+		t.Errorf("Expected entry2 to be %v. Got %v\n", entry2, got2)
+	}
+
+}
+
 func cleanup(fpath string) {
 	os.Remove(fpath)
 }
