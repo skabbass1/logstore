@@ -1,7 +1,10 @@
 package logstore
 
-import "os"
-import "fmt"
+import (
+	"fmt"
+	"io"
+	"os"
+)
 
 type LogSegment struct {
 	StartOffset int64
@@ -75,6 +78,28 @@ func (seg *LogSegment) Append(data []byte) (int, error) {
 	seg.NextOffset++
 
 	return length, nil
+}
+
+func (seg *LogSegment) Get(offset int64) ([]byte, error) {
+	// TODO ensure offset is not greater that what this segment
+	// contains
+	index, err := seg.Index.GetEntry(offset)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(fmt.Sprintf("%s.log", seg.Name), os.O_RDONLY, 0655)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	//TODO handle read errors
+	buff := make([]byte, index.Length)
+	f.Seek(index.Position, io.SeekStart)
+	_, err = f.Read(buff)
+
+	return buff, err
 }
 
 func (seg *LogSegment) Size() (int64, error) {

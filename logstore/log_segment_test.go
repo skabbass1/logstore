@@ -161,5 +161,73 @@ func TestLogSegment_Append_MaxSizeLimit(t *testing.T) {
 	if err != expectedErr {
 		t.Errorf("Expected err to be:%v. Got:%v\n", err, expectedErr)
 	}
+}
 
+func TestLogSegment_Get(t *testing.T) {
+	m1 := TestMessage{
+		V1: "GOOG",
+		V2: 124,
+		V3: 59.0,
+		V4: "Note1 Note2 Note3",
+	}
+
+	m2 := TestMessage{
+		V1: "MSFT",
+		V2: 1245,
+		V3: 54.1,
+		V4: "Note1 Note2 Note3",
+	}
+
+	m3 := TestMessage{
+		V1: "PYPL",
+		V2: 15,
+		V3: 54.4,
+		V4: "Note1 Note2 Note3",
+	}
+
+	b1, _ := json.Marshal(m1)
+	b2, _ := json.Marshal(m2)
+	b3, _ := json.Marshal(m3)
+
+	segment, _ := NewLogSegment(1, 8*1024)
+	_, err := segment.Append(b1)
+	_, err = segment.Append(b2)
+	_, err = segment.Append(b3)
+
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	bytes1, err := segment.Get(int64(1))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	bytes2, err := segment.Get(int64(2))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	bytes3, err := segment.Get(int64(3))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	var m TestMessage
+	json.Unmarshal(bytes1, &m)
+	if m != m1 {
+		t.Errorf("Expected offset %d to be %v. Got %v\n", 1, m1, m)
+	}
+
+	json.Unmarshal(bytes2, &m)
+	if m != m2 {
+		t.Errorf("Expected offset %d to be %v. Got %v\n", 2, m2, m)
+	}
+
+	json.Unmarshal(bytes3, &m)
+	if m != m3 {
+		t.Errorf("Expected offset %d to be %v. Got %v\n", 3, m3, m)
+	}
+
+	segment.Close()
 }
