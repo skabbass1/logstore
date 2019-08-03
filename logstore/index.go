@@ -9,7 +9,7 @@ import (
 )
 
 const IndexItemWidth = 24
-const perms = 0655
+const Perms = 0655
 
 type IndexEntry struct {
 	Offset   int64
@@ -147,7 +147,7 @@ func createFile(name string, size int64) error {
 }
 
 func readOnlyMemMap(name string) ([]byte, error) {
-	f, err := os.OpenFile(name, os.O_RDONLY, perms)
+	f, err := os.OpenFile(name, os.O_RDONLY, Perms)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func readOnlyMemMap(name string) ([]byte, error) {
 }
 
 func memMap(name string, offset int64, length int64) ([]byte, error) {
-	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, perms)
+	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, Perms)
 	defer f.Close()
 
 	if err != nil {

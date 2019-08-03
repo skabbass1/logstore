@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestLogSegment_NewLogSegment(t *testing.T) {
-	segment, err := NewLogSegment(1, 8*1024)
+	segment, err := NewLogSegment(1, 8*1024, false)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -77,7 +77,7 @@ func TestLogSegment_Append(t *testing.T) {
 	b2, _ := json.Marshal(m2)
 	b3, _ := json.Marshal(m3)
 
-	segment, _ := NewLogSegment(1, 8*1024)
+	segment, _ := NewLogSegment(1, 8*1024, false)
 	len1, err := segment.Append(b1)
 	len2, err := segment.Append(b2)
 	len3, err := segment.Append(b3)
@@ -146,7 +146,7 @@ func TestLogSegment_Append_MaxSizeLimit(t *testing.T) {
 	b1, _ := json.Marshal(m1)
 	b2, _ := json.Marshal(m2)
 
-	segment, _ := NewLogSegment(1, 60)
+	segment, _ := NewLogSegment(1, 60, false)
 	defer segment.Close()
 
 	_, err := segment.Append(b1)
@@ -161,6 +161,33 @@ func TestLogSegment_Append_MaxSizeLimit(t *testing.T) {
 	if err != expectedErr {
 		t.Errorf("Expected err to be:%v. Got:%v\n", err, expectedErr)
 	}
+}
+
+func TestLogSegment_Append_ReadOnly(t *testing.T) {
+
+	m1 := TestMessage{
+		V1: "GOOG",
+		V2: 124,
+		V3: 59.0,
+		V4: "Note1 Note2 Note3",
+	}
+
+	b1, _ := json.Marshal(m1)
+
+	segment, _ := NewLogSegment(1, 60, false)
+	segment.Close()
+
+	rosegment, _ := NewLogSegment(1, -1, true)
+	defer rosegment.Close()
+	_, err := rosegment.Append(b1)
+	if err.(LogStoreErr).ErrType != SegmentIsReadOnly {
+		t.Errorf(
+			"Expected err to be:%d. Got %d",
+			SegmentIsReadOnly,
+			err.(LogStoreErr).ErrType,
+		)
+	}
+
 }
 
 func TestLogSegment_Get(t *testing.T) {
@@ -189,7 +216,7 @@ func TestLogSegment_Get(t *testing.T) {
 	b2, _ := json.Marshal(m2)
 	b3, _ := json.Marshal(m3)
 
-	segment, _ := NewLogSegment(1, 8*1024)
+	segment, _ := NewLogSegment(1, 8*1024, false)
 	_, err := segment.Append(b1)
 	_, err = segment.Append(b2)
 	_, err = segment.Append(b3)
@@ -230,4 +257,71 @@ func TestLogSegment_Get(t *testing.T) {
 	}
 
 	segment.Close()
+}
+
+func TestLogSegment_Get_ReadOnly(t *testing.T) {
+	m1 := TestMessage{
+		V1: "GOOG",
+		V2: 124,
+		V3: 59.0,
+		V4: "Note1 Note2 Note3",
+	}
+
+	m2 := TestMessage{
+		V1: "MSFT",
+		V2: 1245,
+		V3: 54.1,
+		V4: "Note1 Note2 Note3",
+	}
+
+	m3 := TestMessage{
+		V1: "PYPL",
+		V2: 15,
+		V3: 54.4,
+		V4: "Note1 Note2 Note3",
+	}
+
+	b1, _ := json.Marshal(m1)
+	b2, _ := json.Marshal(m2)
+	b3, _ := json.Marshal(m3)
+
+	segment, _ := NewLogSegment(1, 8*1024, false)
+	segment.Append(b1)
+	segment.Append(b2)
+	segment.Append(b3)
+
+	rosegment, _ := NewLogSegment(1, -1, true)
+
+	bytes1, err := rosegment.Get(int64(1))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	bytes2, err := rosegment.Get(int64(2))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	bytes3, err := rosegment.Get(int64(3))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	var m TestMessage
+	json.Unmarshal(bytes1, &m)
+	if m != m1 {
+		t.Errorf("Expected offset %d to be %v. Got %v\n", 1, m1, m)
+	}
+
+	json.Unmarshal(bytes2, &m)
+	if m != m2 {
+		t.Errorf("Expected offset %d to be %v. Got %v\n", 2, m2, m)
+	}
+
+	json.Unmarshal(bytes3, &m)
+	if m != m3 {
+		t.Errorf("Expected offset %d to be %v. Got %v\n", 3, m3, m)
+	}
+
+	rosegment.Close()
 }

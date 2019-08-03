@@ -13,18 +13,27 @@ type LogSegment struct {
 	MaxSize     int64
 	Log         *os.File
 	Index       *Index
+	ReadOnly    bool
 }
 
-func NewLogSegment(offset int64, maxSize int64) (*LogSegment, error) {
+func NewLogSegment(offset int64, maxSize int64, readOnly bool) (*LogSegment, error) {
 	base := fmt.Sprintf("%020d", offset)
 	logName := fmt.Sprintf("%s.log", base)
-	f, err := os.Create(logName)
-	if err != nil {
-		return nil, err
+	indexName := fmt.Sprintf("%s.index", base)
+
+	var f *os.File
+	var err error
+	var index *Index
+
+	if readOnly {
+		f, err = os.OpenFile(logName, os.O_RDONLY, Perms)
+		index, err = NewIndex(indexName, int64(4096), true)
+
+	} else {
+		f, err = os.Create(logName)
+		index, err = NewIndex(indexName, int64(4096), false)
 	}
 
-	indexName := fmt.Sprintf("%s.index", base)
-	index, err := NewIndex(indexName, int64(4096), false)
 	if err != nil {
 		return &LogSegment{}, err
 	}
@@ -36,10 +45,18 @@ func NewLogSegment(offset int64, maxSize int64) (*LogSegment, error) {
 		MaxSize:     maxSize,
 		Log:         f,
 		Index:       index,
+		ReadOnly:    readOnly,
 	}, nil
 }
 
 func (seg *LogSegment) Append(data []byte) (int, error) {
+	if seg.ReadOnly {
+		return -1, NewLogStoreErr(
+			SegmentIsReadOnly,
+			"attempting to write to read only segment",
+			nil,
+		)
+	}
 	size, err := seg.Size()
 	if err != nil {
 		return -1, NewLogStoreErr(
