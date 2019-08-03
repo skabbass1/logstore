@@ -44,6 +44,7 @@ func (entry *IndexEntry) FromBytes(data []byte) error {
 func NewIndex(name string, size int64, readOnly bool) (*Index, error) {
 	var data []byte
 	var err error
+
 	if readOnly {
 		data, err = readOnlyMemMap(name)
 	} else {
@@ -62,6 +63,13 @@ func NewIndex(name string, size int64, readOnly bool) (*Index, error) {
 }
 
 func (m *Index) AddEntry(entry IndexEntry) error {
+	if m.ReadOnly {
+		return NewLogStoreErr(
+			IndexIsReadOnly,
+			"attempting write to read only index",
+			nil,
+		)
+	}
 	if m.NextOffset+IndexItemWidth > int64(len(*m.Data)) {
 		newSize := len(*m.Data) * IndexItemWidth
 		if err := m.Resize(int64(newSize)); err != nil {
@@ -103,6 +111,13 @@ func (m *Index) GetEntry(offset int64) (IndexEntry, error) {
 }
 
 func (m *Index) Resize(size int64) error {
+	if m.ReadOnly {
+		return NewLogStoreErr(
+			IndexIsReadOnly,
+			"attempting to resize readonly index",
+			nil,
+		)
+	}
 	m.Close()
 
 	err := os.Truncate(m.Name, size)
@@ -153,7 +168,6 @@ func readOnlyMemMap(name string) ([]byte, error) {
 	)
 
 	return data, err
-
 }
 
 func memMap(name string, offset int64, length int64) ([]byte, error) {

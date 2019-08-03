@@ -77,6 +77,29 @@ func TestIndex_NewIndex(t *testing.T) {
 	cleanup(fpath)
 }
 
+func TestIndex_NewIndex_ReadOnly(t *testing.T) {
+	fpath := "/tmp/test_mapped"
+
+	idx, _ := NewIndex(fpath, 50, false)
+	defer idx.Close()
+
+	roidx, err := NewIndex(fpath, -1, true)
+	defer roidx.Close()
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	if len(*roidx.Data) != 50 {
+		t.Errorf(
+			"Expected mapped buffer of len: %d. Got: %d",
+			50,
+			len(*roidx.Data),
+		)
+	}
+
+	cleanup(fpath)
+}
+
 func TestIndex_AddEntry(t *testing.T) {
 	fpath := "/tmp/test_mapped"
 
@@ -98,6 +121,27 @@ func TestIndex_AddEntry(t *testing.T) {
 
 	if expected != got {
 		t.Errorf("Expected:%v Got:%v\n", expected, got)
+	}
+
+	cleanup(fpath)
+}
+
+func TestIndex_AddEntry_ReadOnly(t *testing.T) {
+	fpath := "/tmp/test_mapped"
+
+	idx, _ := NewIndex(fpath, 50, false)
+	defer idx.Close()
+
+	roidx, _ := NewIndex(fpath, -1, true)
+	defer roidx.Close()
+
+	err := roidx.AddEntry(IndexEntry{300, 100, 150})
+	if err.(LogStoreErr).ErrType != IndexIsReadOnly {
+		t.Errorf(
+			"expected error type to be %d. Got:%d\n",
+			IndexIsReadOnly,
+			err.(LogStoreErr).ErrType,
+		)
 	}
 
 	cleanup(fpath)
@@ -167,7 +211,42 @@ func TestIndex_GetEntry(t *testing.T) {
 	}
 
 	cleanup(fpath)
+}
 
+func TestIndex_GetEntry_ReadOnly(t *testing.T) {
+	fpath := "/tmp/test_mapped"
+
+	idx, _ := NewIndex(fpath, 1024, false)
+
+	idx.AddEntry(IndexEntry{1, 0, 150})
+	idx.AddEntry(IndexEntry{2, 150, 150})
+	idx.AddEntry(IndexEntry{3, 300, 150})
+	idx.AddEntry(IndexEntry{4, 450, 150})
+	idx.AddEntry(IndexEntry{5, 600, 150})
+
+	idx.Close()
+
+	roidx, _ := NewIndex(fpath, -1, true)
+
+	got1, err := roidx.GetEntry(int64(1))
+	got3, err := roidx.GetEntry(int64(3))
+	got5, err := roidx.GetEntry(int64(5))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	results := [...]IndexEntry{got1, got3, got5}
+	expected := [...]IndexEntry{
+		IndexEntry{1, 0, 150},
+		IndexEntry{3, 300, 150},
+		IndexEntry{5, 600, 150},
+	}
+
+	if results != expected {
+		t.Errorf("Expected:%v Got:%v\n", expected, results)
+	}
+
+	cleanup(fpath)
 }
 
 func cleanup(fpath string) {

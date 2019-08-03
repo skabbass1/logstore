@@ -6,6 +6,7 @@ type LogStoreErrType int
 
 const (
 	SegmentLimitReached LogStoreErrType = iota
+	IndexIsReadOnly
 	OSErr
 )
 
