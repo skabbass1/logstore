@@ -227,6 +227,7 @@ func TestIndex_GetEntry_ReadOnly(t *testing.T) {
 	idx.Close()
 
 	roidx, _ := NewIndex(fpath, -1, true)
+	defer roidx.Close()
 
 	got1, err := roidx.GetEntry(int64(1))
 	got3, err := roidx.GetEntry(int64(3))
