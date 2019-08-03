@@ -21,11 +21,7 @@ type Index struct {
 	Name       string
 	Data       *[]byte
 	NextOffset int64
-}
-
-type ReadOnlyIndex struct {
-	Name string
-	data *[]byte
+	ReadOnly   bool
 }
 
 func (entry *IndexEntry) ToBytes() ([]byte, error) {
@@ -118,46 +114,6 @@ func (m *Index) Resize(size int64) error {
 func (m *Index) Close() error {
 	unix.Msync(*m.Data, unix.MS_SYNC)
 	return unix.Munmap(*m.Data)
-}
-
-func NewReadOnlyIndex(name string) (*ReadOnlyIndex, error) {
-	data, err := readOnlyMemMap(name)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ReadOnlyIndex{
-		Name: name,
-		data: &data,
-	}, nil
-
-}
-
-func (m *ReadOnlyIndex) GetEntry(offset int64) (IndexEntry, error) {
-	first := IndexEntry{}
-	if err := first.FromBytes((*m.data)[:IndexItemWidth]); err != nil {
-		return IndexEntry{}, err
-	}
-
-	distance := offset - first.Offset
-	if distance == 0 {
-		return first, nil
-	}
-
-	start := IndexItemWidth * distance
-	end := start + IndexItemWidth
-
-	entry := IndexEntry{}
-	if err := entry.FromBytes((*m.data)[start:end]); err != nil {
-		return IndexEntry{}, err
-	}
-
-	return entry, nil
-}
-
-func (m *ReadOnlyIndex) Close() error {
-	unix.Msync(*m.data, unix.MS_SYNC)
-	return unix.Munmap(*m.data)
 }
 
 func createFile(name string, size int64) error {
