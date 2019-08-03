@@ -24,7 +24,7 @@ func NewLogSegment(offset int64, maxSize int64) (*LogSegment, error) {
 	}
 
 	indexName := fmt.Sprintf("%s.index", base)
-	index, err := NewIndex(indexName, int64(4096))
+	index, err := NewIndex(indexName, int64(4096), false)
 	if err != nil {
 		return &LogSegment{}, err
 	}

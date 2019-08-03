@@ -41,16 +41,23 @@ func (entry *IndexEntry) FromBytes(data []byte) error {
 	return nil
 }
 
-func NewIndex(name string, size int64) (*Index, error) {
-	err := createFile(name, size)
-	data, err := memMap(name, 0, size)
+func NewIndex(name string, size int64, readOnly bool) (*Index, error) {
+	var data []byte
+	var err error
+	if readOnly {
+		data, err = readOnlyMemMap(name)
+	} else {
+		err = createFile(name, size)
+		data, err = memMap(name, 0, size)
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	return &Index{
-		Name: name,
-		Data: &data,
+		Name:     name,
+		Data:     &data,
+		ReadOnly: readOnly,
 	}, err
 }
 
