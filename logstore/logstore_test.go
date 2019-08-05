@@ -118,7 +118,7 @@ func TestLogStore_Get(t *testing.T) {
 
 	gchan := make(chan Event)
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, 3)
+	binary.PutVarint(b, 3)
 	eventQueue <- Event{Get, b, gchan, nil}
 
 	response := <-gchan

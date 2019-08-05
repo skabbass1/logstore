@@ -51,7 +51,7 @@ func (store *LogStore) runLoop() {
 			event.ResponseChan <- Event{Response, nil, nil, err}
 
 		case event.Type == Get:
-			offset := binary.LittleEndian.Uint64(event.Data)
+			offset, _ := binary.Varint(event.Data)
 			data, err := store.get(int64(offset))
 			event.ResponseChan <- Event{Response, data, nil, err}
 
