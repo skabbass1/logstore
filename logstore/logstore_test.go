@@ -73,6 +73,52 @@ func TestLogStore_Put_Event(t *testing.T) {
 	close(eventQueue)
 }
 
+func TestLogStore_Put_Event_NextSegement(t *testing.T) {
+	eventQueue := make(chan Event, 1000)
+	store, _ := NewLogStore(eventQueue)
+	store.Run()
+
+	pchan := make(chan Event, 1000)
+	message := TestMessage{
+		"foo",
+		12,
+		23.0,
+		"bar",
+	}
+
+	data, _ := json.Marshal(message)
+	for i := 1; i <= 1000; i++ {
+		eventQueue <- Event{Put, data, pchan, nil}
+	}
+
+	for i := 1; i <= 1000; i++ {
+		resp := <-pchan
+		if resp.Error != nil {
+			t.Errorf("%v", resp.Error)
+		}
+	}
+
+	eventQueue <- Event{Terminate, nil, nil, nil}
+	close(pchan)
+	close(eventQueue)
+
+	if store.CurrentSegment.NextOffset != 1001 {
+		t.Errorf(
+			"Expected next offset to be %d. Got %d\n",
+			1001,
+			store.CurrentSegment.NextOffset,
+		)
+	}
+
+	if store.CurrentSegment.Name != fmt.Sprintf("%020d", 946) {
+		t.Errorf(
+			"Expected next segment to be %s. Got %s\n",
+			store.CurrentSegment.Name,
+			fmt.Sprintf("%020d", 946),
+		)
+	}
+
+}
 func TestLogStore_Get(t *testing.T) {
 	eventQueue := make(chan Event, 1000)
 	store, _ := NewLogStore(eventQueue)

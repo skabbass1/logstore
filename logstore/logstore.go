@@ -66,6 +66,22 @@ func (store *LogStore) runLoop() {
 
 func (store *LogStore) append(data []byte) error {
 	_, err := store.CurrentSegment.Append(data)
+	if err != nil {
+		if err.(LogStoreErr).ErrType == SegmentLimitReached {
+			store.CurrentSegment.Close()
+
+			segment, err := NewLogSegment(store.CurrentSegment.NextOffset, 4096, false)
+			if err != nil {
+				return err
+			}
+			store.CurrentSegment = segment
+
+			_, err = store.CurrentSegment.Append(data)
+			return err
+		} else {
+			return err
+		}
+	}
 	return err
 }
 
