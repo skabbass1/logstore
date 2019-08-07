@@ -59,6 +59,9 @@ func (store *LogStore) runLoop() {
 			data, err := store.get(int64(offset))
 			event.ResponseChan <- Event{Response, data, nil, err}
 
+		case event.Type == FlushMetaData:
+			go writeMetaData(store.MetaData)
+
 		case event.Type == Terminate:
 			store.CurrentSegment.Close()
 			return
@@ -81,12 +84,18 @@ func (store *LogStore) append(data []byte) error {
 			store.CurrentSegment = segment
 
 			_, err = store.CurrentSegment.Append(data)
-			return err
+			if err != nil {
+				return err
+			} else {
+				store.MetaData.NextOffset = store.CurrentSegment.NextOffset
+				return nil
+			}
 		} else {
 			return err
 		}
 	}
-	return err
+	store.MetaData.NextOffset = store.CurrentSegment.NextOffset
+	return nil
 }
 
 func (store *LogStore) get(offset int64) ([]byte, error) {
@@ -139,7 +148,9 @@ func readMetaDatafile() (MetaData, error) {
 	var m MetaData
 	json.Unmarshal(bytes, &m)
 	return m, nil
-
 }
 
-func writeMetaData() {}
+func writeMetaData(m MetaData) {
+	data, _ := json.Marshal(m)
+	ioutil.WriteFile(metafile, data, 0644)
+}

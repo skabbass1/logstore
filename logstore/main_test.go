@@ -21,7 +21,9 @@ func TestMain(m *testing.M) {
 func removeTestFiles() {
 	logs, _ := filepath.Glob("*.log")
 	index, _ := filepath.Glob("*.index")
+	meta, _ := filepath.Glob("*.meta")
 	files := append(logs, index...)
+	files = append(files, meta...)
 	for _, f := range files {
 		os.Remove(f)
 	}

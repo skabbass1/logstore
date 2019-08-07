@@ -6,6 +6,7 @@ const (
 	Put = iota
 	Get
 	Response
+	FlushMetaData
 	Terminate
 )
 

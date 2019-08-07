@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestLogStore_New(t *testing.T) {
@@ -231,6 +232,76 @@ func TestLogStore_Get_Event_Closed_Segment(t *testing.T) {
 	eventQueue <- Event{Terminate, nil, nil, nil}
 	close(pchan)
 	close(gchan)
+	close(eventQueue)
+	removeTestFiles()
+}
+
+func TestLogStore_MetaDataUpdate(t *testing.T) {
+	eventQueue := make(chan Event, 1000)
+	store, _ := NewLogStore(eventQueue)
+	store.Run()
+
+	pchan := make(chan Event, 200)
+
+	for i := 1; i <= 200; i++ {
+		message := TestMessage{
+			"foo",
+			i,
+			23.0,
+			"bar",
+		}
+		data, _ := json.Marshal(message)
+		eventQueue <- Event{Put, data, pchan, nil}
+	}
+
+	for i := 1; i <= 200; i++ {
+		<-pchan
+	}
+
+	if store.MetaData.NextOffset != 201 {
+		t.Errorf("Expected next offset to be %d. Got %d\n", 201, store.MetaData.NextOffset)
+	}
+
+	eventQueue <- Event{Terminate, nil, nil, nil}
+	close(pchan)
+	close(eventQueue)
+	removeTestFiles()
+}
+
+func TestLogStore_BootFromMetaData(t *testing.T) {
+	eventQueue := make(chan Event, 1000)
+	store, _ := NewLogStore(eventQueue)
+	store.Run()
+
+	pchan := make(chan Event, 200)
+
+	for i := 1; i <= 200; i++ {
+		message := TestMessage{
+			"foo",
+			i,
+			23.0,
+			"bar",
+		}
+		data, _ := json.Marshal(message)
+		eventQueue <- Event{Put, data, pchan, nil}
+	}
+
+	for i := 1; i <= 200; i++ {
+		<-pchan
+	}
+
+	eventQueue <- Event{FlushMetaData, nil, nil, nil}
+	eventQueue <- Event{Terminate, nil, nil, nil}
+
+	// wait for meta file writing go routine to complete
+	time.Sleep(100 * time.Millisecond)
+
+	store2, _ := NewLogStore(eventQueue)
+	if store2.CurrentSegment.NextOffset != 201 {
+		t.Errorf("Expected next offset to be %d. Got %d\n", 201, store.MetaData.NextOffset)
+	}
+
+	close(pchan)
 	close(eventQueue)
 	removeTestFiles()
 }
