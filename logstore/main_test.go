@@ -15,6 +15,10 @@ type TestMessage struct {
 
 func TestMain(m *testing.M) {
 	m.Run()
+	removeTestFiles()
+}
+
+func removeTestFiles() {
 	logs, _ := filepath.Glob("*.log")
 	index, _ := filepath.Glob("*.index")
 	files := append(logs, index...)

@@ -21,6 +21,8 @@ func TestLogStore_New(t *testing.T) {
 	if store.CurrentSegment.Name != fmt.Sprintf("%020d", 1) {
 		t.Errorf("Expected segment name to be %s. Got %s\n", fmt.Sprintf("%020d", 1), store.CurrentSegment.Name)
 	}
+
+	removeTestFiles()
 }
 
 func TestLogStore_Put_Event(t *testing.T) {
@@ -71,6 +73,7 @@ func TestLogStore_Put_Event(t *testing.T) {
 	eventQueue <- Event{Terminate, nil, nil, nil}
 	close(pchan)
 	close(eventQueue)
+	removeTestFiles()
 }
 
 func TestLogStore_Put_Event_NextSegement(t *testing.T) {
@@ -118,7 +121,9 @@ func TestLogStore_Put_Event_NextSegement(t *testing.T) {
 		)
 	}
 
+	removeTestFiles()
 }
+
 func TestLogStore_Get(t *testing.T) {
 	eventQueue := make(chan Event, 1000)
 	store, _ := NewLogStore(eventQueue)
@@ -181,5 +186,51 @@ func TestLogStore_Get(t *testing.T) {
 	eventQueue <- Event{Terminate, nil, pchan, nil}
 	close(gchan)
 	close(eventQueue)
+	removeTestFiles()
+}
 
+func TestLogStore_Get_Event_Closed_Segment(t *testing.T) {
+	eventQueue := make(chan Event, 1000)
+	store, _ := NewLogStore(eventQueue)
+	store.Run()
+
+	pchan := make(chan Event, 500)
+
+	for i := 1; i <= 500; i++ {
+		message := TestMessage{
+			"foo",
+			i,
+			23.0,
+			"bar",
+		}
+		data, _ := json.Marshal(message)
+		eventQueue <- Event{Put, data, pchan, nil}
+	}
+
+	for i := 1; i <= 500; i++ {
+		<-pchan
+	}
+
+	gchan := make(chan Event)
+	b := make([]byte, 8)
+	binary.PutVarint(b, 356)
+	eventQueue <- Event{Get, b, gchan, nil}
+
+	response := <-gchan
+	if response.Error != nil {
+		t.Errorf("%v\n", response.Error)
+	} else {
+		var data TestMessage
+		json.Unmarshal(response.Data, &data)
+		expected := TestMessage{"foo", 356, 23.0, "bar"}
+		if data != expected {
+			t.Errorf("Expected response to be %v. Got %v\n", expected, data)
+		}
+	}
+
+	eventQueue <- Event{Terminate, nil, nil, nil}
+	close(pchan)
+	close(gchan)
+	close(eventQueue)
+	removeTestFiles()
 }

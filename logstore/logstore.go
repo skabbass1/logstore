@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 const metafile = "logstore.meta"
@@ -86,7 +90,35 @@ func (store *LogStore) append(data []byte) error {
 }
 
 func (store *LogStore) get(offset int64) ([]byte, error) {
+	if offset < store.CurrentSegment.StartOffset {
+		return getFromClosedSegment(offset)
+	}
 	return store.CurrentSegment.Get(offset)
+}
+
+func getFromClosedSegment(offset int64) ([]byte, error) {
+	files, _ := filepath.Glob("*.index")
+	var values []int
+	for _, file := range files {
+		n := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+		v, _ := strconv.ParseInt(n, 10, 32)
+		values = append(values, int(v))
+	}
+	sort.Ints(values)
+
+	var myoffset int
+	for idx, value := range values {
+		if int64(value) > offset {
+			myoffset = values[idx-1]
+			break
+		}
+	}
+
+	segment, _ := NewLogSegment(int64(myoffset), -1, true)
+	result, err := segment.Get(offset)
+	segment.Close()
+	return result, err
+
 }
 
 func readMetaDatafile() (MetaData, error) {
