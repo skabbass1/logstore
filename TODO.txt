@@ -1,1 +1,0 @@
-* Attach ReadOnly Index to existing index file
