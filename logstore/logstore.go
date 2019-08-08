@@ -12,6 +12,7 @@ import (
 )
 
 const metafile = "logstore.meta"
+const segmentSize = 4096
 
 type MetaData struct {
 	NextOffset int64
@@ -29,7 +30,7 @@ func NewLogStore(queue <-chan Event) (*LogStore, error) {
 		return nil, err
 	}
 
-	segment, err := NewLogSegment(metadata.NextOffset, 4096, false)
+	segment, err := NewLogSegment(metadata.NextOffset, segmentSize, false)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func (store *LogStore) append(data []byte) error {
 		if err.(LogStoreErr).ErrType == SegmentLimitReached {
 			store.CurrentSegment.Close()
 
-			segment, err := NewLogSegment(store.CurrentSegment.NextOffset, 4096, false)
+			segment, err := NewLogSegment(store.CurrentSegment.NextOffset, segmentSize, false)
 			if err != nil {
 				return err
 			}
